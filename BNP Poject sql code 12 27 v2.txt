@@ -1,0 +1,1325 @@
+----------Rajat Chuttani
+----------Heart Failure Patient from Pharma , Raven , EHR
+
+
+---------------------------------------------------------------------------------------------------
+------- Pulling Data from Pharmacy for heart failure patient from 2010 to YTD 2017 ----------------
+---------------------------------------------------------------------------------------------------
+
+//Pharma
+drop table SANDBOX.Rajat_BNP_Project_pharma_1
+CREATE TABLE SANDBOX.Rajat_BNP_Project_pharma_1 AS
+SELECT
+       ENCRYPTED_KEY_1,
+       ENCRYPTED_KEY_2,
+       to_date(date_of_service) as SERVICE_FROM,
+                   CONDOR_TDR_CLAIMID AS Claim_Number,
+       diagnosis_code as DX_Code,
+       DATE_OF_BIRTH,
+       prescriber_id as NPI
+             
+FROM rwd.condor_pharmacy_record
+WHERE TRIM(UPPER(RESPONSE_CODE)) = 'P'
+  AND  trim(upper(diagnosis_code)) in ('I509','I5089','I5084','I5083','I5082','I50814','I50813','I50812','I50811',
+                                       'I50810','I5081','I508','I5043','I5042','I5041','I5040','I504','I5033','I5032',
+                                       'I5031','I5030','I503','I5023','I5022','I5021','I5020','I502','I501','I50','4289',
+                                       '42843','42842','42841','42840','4284','42833','42832','42831','42830','4283','42823',
+                                       '42822','42821','42820','4282','4281','4280','428',
+                                       
+                                       'I50.9','I50.89','I50.84','I50.83','I50.82','I50.814','I50.813','I50.812','I50.811',
+                                       'I50.810','I50.81','I50.8','I50.43','I50.42','I50.41','I50.40','I50.4','I50.33',
+                                       'I50.32','I50.31','I50.30','I50.3','I50.23','I50.22','I50.21','I50.20','I50.2',
+                                       'I50.1 ','I50','428.9','428.43','428.42','428.41','428.40','428.4','428.33','428.32',
+                                       '428.31','428.30','428.3','428.23','428.22','428.21','428.20','428.2','428.1',
+                                       '428.0','428')
+and Year(service_from) in ('2010','2011','2012','2013','2014','2015','2016','2017')
+and         ENCRYPTED_KEY_1 is not null
+        and trim(ENCRYPTED_KEY_1) <> ''
+        and upper(ENCRYPTED_KEY_1) not like 'XXX -%'
+        and upper(ENCRYPTED_KEY_1) <> 'NULL'
+
+
+select count (distinct ENCRYPTED_KEY_1) from SANDBOX.Rajat_BNP_Project_pharma_1 //43530
+
+
+//remove duplicate
+drop table SANDBOX.Rajat_BNP_Project_pharma_2
+CREATE TABLE SANDBOX.Rajat_BNP_Project_pharma_2 as
+select distinct * ,'pharma' as datasource from SANDBOX.Rajat_BNP_Project_pharma_1
+
+
+select count (distinct ENCRYPTED_KEY_1) from SANDBOX.Rajat_BNP_Project_pharma_2 //46070
+
+
+
+
+
+
+------- Pulling Data from Claims(Raven) for heart failure patient from 2013 to YTD 2017 -----------
+---------------------------------------------------------------------------------------------------
+
+
+//Raven
+drop table sandbox.Rajat_BNP_Project_raven_1
+CREATE TABLE sandbox.Rajat_BNP_Project_raven_1 AS 
+SELECT 
+  encrypted_key_1,
+  ENCRYPTED_KEY_2,
+  COALESCE(MIN_SERVICE_FROM,statement_from) as  SERVICE_FROM,
+  claim_number,
+  diagnosis as DX_Code
+  
+FROM   sandbox.claims_submits_diagnosis 
+WHERE  Upper(diagnosis) in ('I509','I5089','I5084','I5083','I5082','I50814','I50813','I50812','I50811',
+                                       'I50810','I5081','I508','I5043','I5042','I5041','I5040','I504','I5033','I5032',
+                                       'I5031','I5030','I503','I5023','I5022','I5021','I5020','I502','I501','I50','4289',
+                                       '42843','42842','42841','42840','4284','42833','42832','42831','42830','4283','42823',
+                                       '42822','42821','42820','4282','4281','4280','428',
+                                       
+                                       'I50.9','I50.89','I50.84','I50.83','I50.82','I50.814','I50.813','I50.812','I50.811',
+                                       'I50.810','I50.81','I50.8','I50.43','I50.42','I50.41','I50.40','I50.4','I50.33',
+                                       'I50.32','I50.31','I50.30','I50.3','I50.23','I50.22','I50.21','I50.20','I50.2',
+                                       'I50.1 ','I50','428.9','428.43','428.42','428.41','428.40','428.4','428.33','428.32',
+                                       '428.31','428.30','428.3','428.23','428.22','428.21','428.20','428.2','428.1',
+                                       '428.0','428')
+
+AND   Year(SERVICE_FROM) in ('2010','2011','2012','2013','2014','2015','2016','2017')
+
+AND    upper(encrypted_key_1) IS NOT NULL 
+AND    Upper(encrypted_key_1) <> 'NULL' 
+AND   Upper(encrypted_key_1) NOT LIKE 'XXX -%'
+AND   Upper(claim_number) <> 'NULL' 
+ 
+ 
+select count(distinct encrypted_key_1) from sandbox.Rajat_BNP_Project_raven_1 //9800370
+select year(SERVICE_FROM),count(distinct encrypted_key_1) from sandbox.Rajat_BNP_Project_raven_1
+group by 1
+order by 1
+
+
+
+//distinct
+drop table sandbox.Rajat_BNP_Project_raven_2
+
+create table sandbox.Rajat_BNP_Project_raven_2 as
+select distinct *,'Raven' as datasource from sandbox.Rajat_BNP_Project_raven_1
+
+select count(distinct encrypted_key_1) from sandbox.Rajat_BNP_Project_raven_2 //9800370
+
+
+-------- Joining with other column to pull required fields ------------------------------------------
+-----------------------------------------------------------------------------------------------------
+drop table sandbox.Rajat_BNP_Project_raven_3
+create table sandbox.Rajat_BNP_Project_raven_3 as
+select distinct
+       a.*,
+       b.MEMBER_DOB
+
+from sandbox.Rajat_BNP_Project_raven_2 a left join 
+sandbox.Claims_submits_patient b on a.CLAIM_NUMBER=b.CLAIM_NUMBER
+
+select count(distinct encrypted_key_1) from sandbox.Rajat_BNP_Project_raven_3
+
+
+------- Pulling Data from EHR for heart failure patient -------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- checking for realted strings/Name
+/*
+select distinct name from RWD.ALBATROSS_EHR_PROBLEMS PROB
+where 
+  upper(name) like '%428.0%'
+  or upper(name) like '%428.1%'
+  or upper(name) like '%428.20%'
+  or upper(name) like '%428.42%'
+  or upper(name) like '%I50.9 %'
+  or lower(name) like '%heart failure%'
+  or lower(name) like '%heartfailure%'
+  or lower(name) like '%cardiac failure%'
+  or (lower(name) like '%chf%'
+     and (     lower(name) like '%systolic%'  or lower(name) like '%diastolic%'
+             or lower(name) like '%chronic%'  or lower(name) like '%acute%'
+             or lower(name) like '%heart%'    or lower(name) like '%failure%'  
+         ) 
+      )       
+  or (lower(name) like '%heart%' and lower(name) like '%failure%')
+*/ 
+  
+  
+//EHR 1
+drop table sandbox.Rajat_BNP_Project_EHR_1
+create table sandbox.Rajat_BNP_Project_EHR_1 as
+SELECT 'EHR' as DATASOURCE
+     , PROB.ENCRYPTED_KEY_1 as PATIENT_SUFFIX
+     ,PROB.ENCRYPTED_KEY_2
+                , CAST(PROB.ENCOUNTERID as STRING) as CLAIM_NUMBER
+     , CAST(PROB.RECORDEDDTTM as DATE) as STATEMENT_FROM
+     ,PROB.ICD9 as ICD_Code
+     ,PROB.GENPROVIDERID AS NPI
+     ,PROB.NAME
+FROM RWD.ALBATROSS_EHR_PROBLEMS PROB
+
+where (
+        UPPER(PROB.ICD9) in ('I509','I5089','I5084','I5083','I5082','I50814','I50813','I50812','I50811',
+                                       'I50810','I5081','I508','I5043','I5042','I5041','I5040','I504','I5033','I5032',
+                                       'I5031','I5030','I503','I5023','I5022','I5021','I5020','I502','I501','I50','4289',
+                                       '42843','42842','42841','42840','4284','42833','42832','42831','42830','4283','42823',
+                                       '42822','42821','42820','4282','4281','4280','428',
+                                       
+                                       'I50.9','I50.89','I50.84','I50.83','I50.82','I50.814','I50.813','I50.812','I50.811',
+                                       'I50.810','I50.81','I50.8','I50.43','I50.42','I50.41','I50.40','I50.4','I50.33',
+                                       'I50.32','I50.31','I50.30','I50.3','I50.23','I50.22','I50.21','I50.20','I50.2',
+                                       'I50.1 ','I50','428.9','428.43','428.42','428.41','428.40','428.4','428.33','428.32',
+                                       '428.31','428.30','428.3','428.23','428.22','428.21','428.20','428.2','428.1',
+                                       '428.0','428')
+       
+  or upper(name) like '%428.0%'
+  or upper(name) like '%428.1%'
+  or upper(name) like '%428.20%'
+  or upper(name) like '%428.42%'
+  or upper(name) like '%I50.9 %'
+  or lower(name) like '%heart failure%'
+  or lower(name) like '%heartfailure%'
+  or lower(name) like '%cardiac failure%'
+  or (lower(name) like '%chf%'
+     and (     lower(name) like '%systolic%'  or lower(name) like '%diastolic%'
+             or lower(name) like '%chronic%'  or lower(name) like '%acute%'
+             or lower(name) like '%heart%'    or lower(name) like '%failure%'  
+         ) 
+      )       
+  or (lower(name) like '%heart%' and lower(name) like '%failure%')
+
+
+  
+   ) 
+   
+  and year(STATEMENT_FROM) in ('2008','2009','2010','2011','2012','2013','2014','2015','2016','2017')
+  AND  trim(patient_suffix) is not null
+  AND trim(patient_suffix) not like 'XXX -%'
+  AND trim(patient_suffix) <> ''
+  AND trim(upper(patient_suffix)) <> 'NULL'
+  and trim (lower(PROB.status)) not in ('entered in error','erroneous entry')
+  and trim (upper(PROB.errorflag)) <> 'Y'
+
+
+//EHR 2
+drop table sandbox.Rajat_BNP_Project_EHR_2
+create table sandbox.Rajat_BNP_Project_EHR_2 as
+SELECT 'EHR' as DATASOURCE
+     , PROB.ENCRYPTED_KEY_1 as PATIENT_SUFFIX
+     , PROB.ENCRYPTED_KEY_2
+                , CAST(PROB.ENCOUNTERID as STRING) as CLAIM_NUMBER
+     , CAST(PROB.RECORDEDDTTM as DATE) as STATEMENT_FROM
+     ,PROB.ICD10 as ICD_Code
+     ,PROB.GENPROVIDERID AS NPI
+     ,PROB.NAME
+FROM RWD.ALBATROSS_EHR_PROBLEMS PROB
+
+where (
+
+      UPPER(PROB.ICD10) in ('I509','I5089','I5084','I5083','I5082','I50814','I50813','I50812','I50811',
+                                       'I50810','I5081','I508','I5043','I5042','I5041','I5040','I504','I5033','I5032',
+                                       'I5031','I5030','I503','I5023','I5022','I5021','I5020','I502','I501','I50','4289',
+                                       '42843','42842','42841','42840','4284','42833','42832','42831','42830','4283','42823',
+                                       '42822','42821','42820','4282','4281','4280','428',
+                                       
+                                       'I50.9','I50.89','I50.84','I50.83','I50.82','I50.814','I50.813','I50.812','I50.811',
+                                       'I50.810','I50.81','I50.8','I50.43','I50.42','I50.41','I50.40','I50.4','I50.33',
+                                       'I50.32','I50.31','I50.30','I50.3','I50.23','I50.22','I50.21','I50.20','I50.2',
+                                       'I50.1 ','I50','428.9','428.43','428.42','428.41','428.40','428.4','428.33','428.32',
+                                       '428.31','428.30','428.3','428.23','428.22','428.21','428.20','428.2','428.1',
+                                       '428.0','428')
+       
+  
+  or upper(name) like '%428.0%'
+  or upper(name) like '%428.1%'
+  or upper(name) like '%428.20%'
+  or upper(name) like '%428.42%'
+  or upper(name) like '%I50.9 %'
+  or lower(name) like '%heart failure%'
+  or lower(name) like '%heartfailure%'
+  or lower(name) like '%cardiac failure%'
+  or (lower(name) like '%chf%'
+     and (     lower(name) like '%systolic%'  or lower(name) like '%diastolic%'
+             or lower(name) like '%chronic%'  or lower(name) like '%acute%'
+             or lower(name) like '%heart%'    or lower(name) like '%failure%'  
+         ) 
+      )       
+  or (lower(name) like '%heart%' and lower(name) like '%failure%')
+  
+   ) 
+   
+  and year(STATEMENT_FROM) in ('2008','2009','2010','2011','2012','2013','2014','2015','2016','2017')
+  AND  trim(patient_suffix) is not null
+  AND trim(patient_suffix) not like 'XXX -%'
+  AND trim(patient_suffix) <> ''
+  AND trim(upper(patient_suffix)) <> 'NULL'
+  and trim (lower(PROB.status)) not in ('entered in error','erroneous entry')
+  and trim (upper(PROB.errorflag)) <> 'Y'
+
+
+
+
+//EHR 3
+drop table sandbox.Rajat_BNP_Project_EHR_3
+create table sandbox.Rajat_BNP_Project_EHR_3 as
+SELECT 'EHR' as DATASOURCE
+    
+      ,ORD.ENCRYPTED_KEY_1 as PATIENT_SUFFIX
+      ,ORD.ENCRYPTED_KEY_2
+                , CAST(ORD.ENCOUNTERID as STRING) as CLAIM_NUMBER
+                
+     , CAST(ORD.RECORDEDDTTM as DATE) as STATEMENT_FROM_NEW
+     ,ORD.BILLINGICD9CODE as ICD_Code
+     ,ORD.GENPROVIDERID AS NPI
+     ,ORD.NAME
+FROM RWD.ALBATROSS_EHR_ORDERS ORD
+
+where (
+    UPPER(ORD.BILLINGICD9CODE) in ('I509','I5089','I5084','I5083','I5082','I50814','I50813','I50812','I50811',
+                                       'I50810','I5081','I508','I5043','I5042','I5041','I5040','I504','I5033','I5032',
+                                       'I5031','I5030','I503','I5023','I5022','I5021','I5020','I502','I501','I50','4289',
+                                       '42843','42842','42841','42840','4284','42833','42832','42831','42830','4283','42823',
+                                       '42822','42821','42820','4282','4281','4280','428',
+                                       
+                                       'I50.9','I50.89','I50.84','I50.83','I50.82','I50.814','I50.813','I50.812','I50.811',
+                                       'I50.810','I50.81','I50.8','I50.43','I50.42','I50.41','I50.40','I50.4','I50.33',
+                                       'I50.32','I50.31','I50.30','I50.3','I50.23','I50.22','I50.21','I50.20','I50.2',
+                                       'I50.1 ','I50','428.9','428.43','428.42','428.41','428.40','428.4','428.33','428.32',
+                                       '428.31','428.30','428.3','428.23','428.22','428.21','428.20','428.2','428.1',
+                                       '428.0','428')
+
+       
+  or upper(name) like '%428.0%'
+  or upper(name) like '%428.1%'
+  or upper(name) like '%428.20%'
+  or upper(name) like '%428.42%'
+  or upper(name) like '%I50.9 %'
+  or lower(name) like '%heart failure%'
+  or lower(name) like '%heartfailure%'
+  or lower(name) like '%cardiac failure%'
+  or (lower(name) like '%chf%'
+     and (     lower(name) like '%systolic%'  or lower(name) like '%diastolic%'
+             or lower(name) like '%chronic%'  or lower(name) like '%acute%'
+             or lower(name) like '%heart%'    or lower(name) like '%failure%'  
+         ) 
+      )       
+  or (lower(name) like '%heart%' and lower(name) like '%failure%')
+  
+  )
+   
+   and Year(STATEMENT_FROM_NEW) in ('2008','2009','2010','2011','2012','2013','2014','2015','2016','2017')
+   AND  trim(patient_suffix) is not null
+  AND trim(patient_suffix) not like 'XXX -%'
+  AND trim(patient_suffix) <>''
+  AND trim(upper(patient_suffix)) <> 'NULL'
+  and trim (lower(ORD.status)) in ('','active','b','complete','discontinued','e','final','g','in progress','n','need information',
+'ordered','pending','preliminary','resulted','reviewed','s','v')
+
+
+
+//EHR 4
+drop table sandbox.Rajat_BNP_Project_EHR_4
+create table sandbox.Rajat_BNP_Project_EHR_4 as
+SELECT 'EHR' as DATASOURCE
+    
+      ,ORD.ENCRYPTED_KEY_1 as PATIENT_SUFFIX
+      ,ORD.ENCRYPTED_KEY_2
+                , CAST(ORD.ENCOUNTERID as STRING) as CLAIM_NUMBER
+                
+     , CAST(ORD.RECORDEDDTTM as DATE) as STATEMENT_FROM_NEW
+     ,ORD.BILLINGICD10CODE as ICD_Code
+     ,ORD.GENPROVIDERID AS NPI
+     ,ORD.NAME
+FROM RWD.ALBATROSS_EHR_ORDERS ORD
+
+where (
+
+      UPPER(ORD.BILLINGICD10CODE) in ('I509','I5089','I5084','I5083','I5082','I50814','I50813','I50812','I50811',
+                                       'I50810','I5081','I508','I5043','I5042','I5041','I5040','I504','I5033','I5032',
+                                       'I5031','I5030','I503','I5023','I5022','I5021','I5020','I502','I501','I50','4289',
+                                       '42843','42842','42841','42840','4284','42833','42832','42831','42830','4283','42823',
+                                       '42822','42821','42820','4282','4281','4280','428',
+                                       
+                                       'I50.9','I50.89','I50.84','I50.83','I50.82','I50.814','I50.813','I50.812','I50.811',
+                                       'I50.810','I50.81','I50.8','I50.43','I50.42','I50.41','I50.40','I50.4','I50.33',
+                                       'I50.32','I50.31','I50.30','I50.3','I50.23','I50.22','I50.21','I50.20','I50.2',
+                                       'I50.1 ','I50','428.9','428.43','428.42','428.41','428.40','428.4','428.33','428.32',
+                                       '428.31','428.30','428.3','428.23','428.22','428.21','428.20','428.2','428.1',
+                                       '428.0','428')
+       
+  or upper(name) like '%428.0%'
+  or upper(name) like '%428.1%'
+  or upper(name) like '%428.20%'
+  or upper(name) like '%428.42%'
+  or upper(name) like '%I50.9 %'
+  or lower(name) like '%heart failure%'
+  or lower(name) like '%heartfailure%'
+  or lower(name) like '%cardiac failure%'
+  or (lower(name) like '%chf%'
+     and (     lower(name) like '%systolic%'  or lower(name) like '%diastolic%'
+             or lower(name) like '%chronic%'  or lower(name) like '%acute%'
+             or lower(name) like '%heart%'    or lower(name) like '%failure%'  
+         ) 
+      )       
+  or (lower(name) like '%heart%' and lower(name) like '%failure%')
+  
+   )
+   and Year(STATEMENT_FROM_NEW) in ('2008','2009','2010','2011','2012','2013','2014','2015','2016','2017')
+   AND  trim(patient_suffix) is not null
+  AND trim(patient_suffix) not like 'XXX -%'
+  AND trim(patient_suffix) <>''
+  AND trim(upper(patient_suffix)) <> 'NULL'
+  and trim (lower(ORD.status)) in ('','active','b','complete','discontinued','e','final','g','in progress','n','need information',
+'ordered','pending','preliminary','resulted','reviewed','s','v')
+
+//union
+drop table sandbox.Rajat_BNP_Project_EHR_union
+
+create table sandbox.Rajat_BNP_Project_EHR_union as
+
+select distinct * from sandbox.Rajat_BNP_Project_EHR_1
+union
+select distinct * from sandbox.Rajat_BNP_Project_EHR_2
+union
+select distinct * from sandbox.Rajat_BNP_Project_EHR_3
+union
+select distinct * from sandbox.Rajat_BNP_Project_EHR_4
+
+select count (distinct patient_suffix) from sandbox.Rajat_BNP_Project_EHR_union //1409749
+
+
+//pulling dob year
+create table sandbox.Rajat_BNP_Project_EHR_union_1 as
+select distinct 
+       a.*,
+       b.DOBYEAR
+from sandbox.Rajat_BNP_Project_EHR_union a
+left join RWD.ALBATROSS_EHR_patients b on a.PATIENT_SUFFIX = b.ENCRYPTED_KEY_1
+
+select count (distinct patient_suffix) from sandbox.Rajat_BNP_Project_EHR_union_1 //1409749
+
+
+------------------------------------------------------------------------------------------------------
+//unoin of pharma , raven,ehr
+
+describe table SANDBOX.Rajat_BNP_Project_pharma_2  // Pharma
+describe table sandbox.Rajat_BNP_Project_raven_3   // raven
+describe table sandbox.Rajat_BNP_Project_EHR_union_1  //EHR
+
+drop table sandbox.Rajat_BNP_heart_failure_patient_Pharma_Raven_EHR
+create table sandbox.Rajat_BNP_heart_failure_patient_Pharma_Raven_EHR as
+select distinct   
+ ENCRYPTED_KEY_1
+,ENCRYPTED_KEY_2
+,SERVICE_FROM
+,CLAIM_NUMBER
+,DX_CODE
+,year(DATE_OF_BIRTH) as dob_year
+,DATASOURCE    from SANDBOX.Rajat_BNP_Project_pharma_2
+
+union
+
+select distinct
+ENCRYPTED_KEY_1
+,ENCRYPTED_KEY_2
+,SERVICE_FROM
+,CLAIM_NUMBER
+,DX_CODE
+,year(MEMBER_DOB) as dob_year
+,DATASOURCE    from sandbox.Rajat_BNP_Project_raven_3 
+
+union
+
+select distinct
+
+PATIENT_SUFFIX
+,ENCRYPTED_KEY_2
+,STATEMENT_FROM
+,CLAIM_NUMBER
+,ICD_CODE
+,DOBYEAR
+,DATASOURCE     from sandbox.Rajat_BNP_Project_EHR_union_1
+
+
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.Rajat_BNP_heart_failure_patient_Pharma_Raven_EHR //10626214
+
+
+select year(SERVICE_FROM),count(distinct ENCRYPTED_KEY_1) 
+from sandbox.Rajat_BNP_heart_failure_patient_Pharma_Raven_EHR 
+group by 1
+order by 1,2
+
+
+------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+
+
+
+
+//BNP Patient
+/*-------------------------------------------------------------------------------------------------*/
+/*-----------------------------------------Based on PROC Codes-------------------------------------*/
+/*----------------------------------BNP Patient with 2013 to 2017 YTD -----------------------------*/
+
+create table sandbox.rajat_raven_bnp_1 as
+select CLAIM_NUMBER
+      ,encrypted_key_1
+      ,encrypted_key_2
+      ,PROCEDURE
+      ,to_Date(coalesce(SERVICE_FROM,STATEMENT_FROM)) as svc_dt
+from sandbox.Claims_submits_procedure
+where upper(PROCEDURE) in ('83880')
+and to_Date(coalesce(SERVICE_FROM,STATEMENT_FROM)) >= '2010-01-01'
+and to_Date(coalesce(SERVICE_FROM,STATEMENT_FROM)) <= '2017-12-31'
+;
+/*----------------------------Excluding Invalid Records------------------------*/
+drop table sandbox.rajat_raven_bnp_2 
+
+create table sandbox.rajat_raven_bnp_2 as
+select distinct * ,'raven' as datasource
+from sandbox.rajat_raven_bnp_1
+where claim_number IS NOT NULL 
+AND   Upper(claim_number) <> 'NULL' 
+AND   encrypted_key_1 IS NOT NULL 
+AND   Upper(encrypted_key_1) <> 'NULL' 
+AND   Upper(encrypted_key_1) NOT LIKE 'XXX -%' 
+AND   encrypted_key_1 <> ''
+AND   encrypted_key_2 IS NOT NULL 
+AND   Upper(encrypted_key_2) <> 'NULL' 
+AND   Upper(encrypted_key_2) NOT LIKE 'XXX -%' 
+AND   encrypted_key_2 <> ''
+;
+
+select count(distinct encrypted_key_1) from sandbox.rajat_raven_bnp_2  //5471924
+
+-----------------------------------------------------------------------------------------------------------
+//EHR
+-----------------------------------------------------------------------------------------------------------
+
+//Problem table
+create table sandbox.rajat_EHR_BNP_01 as
+select  'EHR' AS DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+    , encounterid AS Claim_Number
+    , to_date(recordeddttm) AS SERVICE_FROM
+    ,cptcode
+From rwd.albatross_EHR_problems
+where upper(cptcode) in ('83880') 
+and (lower(status) in ('active','administered','complete','final','in progress','ordered','pending','preliminary',
+                           'resulted','reviewed','',' ')
+    )
+and trim(encrypted_key_1) not like 'XXX -%'
+and trim(encrypted_key_1) IS NOT NULL
+and trim(encrypted_key_1) <> ''
+and trim (upper(errorflag)) <> 'Y'
+
+select count(distinct encrypted_key_1) from sandbox.rajat_EHR_BNP_01 //0
+
+//Order table
+create   table sandbox.rajat_EHR_BNP_02 as
+select  'EHR' AS DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+    , ord.encounterid AS Claim_Number   
+    , to_date(ord.recordeddttm) AS SERVICE_FROM
+    ,ord.cpt4
+    ,ord.name
+From rwd.albatross_EHR_orders ord
+where (upper(ord.cpt4) in ('83880')  or ord.HCPCS in ('83880')
+      or upper(ord.name) like '%NATRIURETIC PEP%'
+      or upper(ord.name) like '%BNP%'
+      or upper(ord.name) like '%83880%'
+      or upper(ord.name) like '%NATIURETIC PEPTIDE%'
+      or upper(ord.name) like '%B-TYPE NATIURETIC PEPTIDE%'
+      or lower(ord.name) like '%naturetic peptide%'
+      or lower(ord.name) like '%b type natriuretic%'
+      or upper(ord.name) like '%B-TYPE NATRIURETIC PEP%'
+      or upper(ord.name) like '%BRAIN NATRIURETIC PEPTIDE%'
+      or lower(ord.name) like '%natriuretic peptide%'
+      or lower(ord.name) like '%natriuretic Pep%' 
+            )
+and (lower(ord.status)) in ('active','administered','complete','final','in progress','ordered','pending','preliminary','resulted','reviewed','',' ')
+and trim(encrypted_key_1) not like 'XXX -%'
+and trim(encrypted_key_1) IS NOT NULL
+and trim(encrypted_key_1) <> ''
+
+
+select count(distinct encrypted_key_1) from sandbox.rajat_EHR_BNP_02 //714282
+
+
+
+//Result table
+create table sandbox.rajat_EHR_BNP_03 as
+  select  'EHR' AS DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+   ,encounterid AS Claim_Number
+   ,to_date(recordeddttm) AS SERVICE_FROM
+   ,loinc
+   ,panel
+   ,test
+From rwd.albatross_EHR_results ord
+where (lower(resultstatus)) in ('acknowledged','active','blood','cervix','clean catch','final','nose','ordered','other','pending','perineum','plasma',
+                            'preliminary','rectal','reviewed','serum','sputum','stool','synovial fluid','throat','unacknowledged','upper respiratory tract',
+                            'urine','urine - cath','urine - clean catch','urine 24 hour','vagina','vaginal discharge','wound')
+and
+( 
+  upper(loinc) in ('30934-4','309344','33762-6','337626') 
+  or
+( upper(ord.panel) like '%NATRIURETIC PEP%'
+      or upper(ord.panel) like '%BNP%'
+      or upper(ord.panel) like '%83880%'
+      or upper(ord.panel) like '%NATIURETIC PEPTIDE%'
+      or upper(ord.panel) like '%B-TYPE NATIURETIC PEPTIDE%'
+      or lower(ord.panel) like '%naturetic peptide%'
+      or lower(ord.panel) like '%b type natriuretic%'
+      or upper(ord.panel) like '%B-TYPE NATRIURETIC PEP%'
+      or upper(ord.panel) like '%BRAIN NATRIURETIC PEPTIDE%'
+      or lower(ord.panel) like '%natriuretic peptide%'
+      or lower(ord.panel) like '%natriuretic Pep%'
+or
+upper(ord.test) like '%NATRIURETIC PEP%'
+      or upper(ord.test) like '%BNP%'
+      or upper(ord.test) like '%83880%'
+      or upper(ord.test) like '%NATIURETIC PEPTIDE%'
+      or upper(ord.test) like '%B-TYPE NATIURETIC PEPTIDE%'
+      or lower(ord.test) like '%naturetic peptide%'
+      or lower(ord.test) like '%b type natriuretic%'
+      or upper(ord.test) like '%B-TYPE NATRIURETIC PEP%'
+      or upper(ord.test) like '%BRAIN NATRIURETIC PEPTIDE%'
+      or lower(ord.test) like '%natriuretic peptide%'
+      or lower(ord.test) like '%natriuretic Pep%'
+
+ 
+      ) 
+  )
+
+and trim(encrypted_key_1) not like 'XXX -%'
+and trim(encrypted_key_1) IS NOT NULL
+and trim(encrypted_key_1) <> ''
+and trim (upper(errorflag)) <> 'Y'
+
+select count(distinct encrypted_key_1) from sandbox.rajat_EHR_BNP_03 //622023
+
+
+//union ehr
+create  table sandbox.rajat_EHR_BNP_union as
+select distinct 
+     DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+    ,Claim_Number
+    ,SERVICE_FROM 
+    ,cptcode as cpt_loinc_code          from sandbox.rajat_EHR_BNP_01
+union
+select distinct 
+     DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+    ,Claim_Number
+    ,SERVICE_FROM 
+    ,cpt4             from sandbox.rajat_EHR_BNP_02
+union
+select distinct     
+     DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+    ,Claim_Number
+    ,SERVICE_FROM  
+    ,loinc            from sandbox.rajat_EHR_BNP_03
+
+select count(distinct encrypted_key_1) from sandbox.rajat_EHR_BNP_union //787919
+
+//union of RAVEN and EHR for BNP Patient
+drop table sandbox.rajat_EHR_Raven_BNP_Union_1
+
+create table sandbox.rajat_EHR_Raven_BNP_Union_1 as
+select distinct 
+       datasource
+      ,encrypted_key_1
+      ,encrypted_key_2
+      ,cast(CLAIM_NUMBER as varchar()) as claim_number
+      ,svc_dt
+      ,PROCEDURE as code_CPT_LOINC
+                  from sandbox.rajat_raven_bnp_2 //raven
+union
+
+select distinct 
+     DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+    ,cast(Claim_Number as varchar()) as claim_number
+    ,SERVICE_FROM 
+    ,cpt_loinc_code  from sandbox.rajat_EHR_BNP_union   //EHR
+    
+select count(distinct encrypted_key_1) from sandbox.rajat_EHR_Raven_BNP_Union_1 //6081793
+    
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+// Inner join of Heart failure patient and BNP patient
+
+sandbox.rajat_EHR_Raven_BNP_Union_1 // BNP patient
+sandbox.Rajat_BNP_heart_failure_patient_Pharma_Raven_EHR // Heart failure patient
+
+drop table sandbox.rajat_Heart_failure_BNP_common
+create table sandbox.rajat_Heart_failure_BNP_common as
+select 
+       a.encrypted_key_1
+      ,a.encrypted_key_2
+      ,a.claim_number
+      ,a.svc_dt
+      ,a.code_CPT_LOINC
+      ,b.DX_CODE
+      ,b.dob_year
+from sandbox.rajat_EHR_Raven_BNP_Union_1 a inner join 
+sandbox.Rajat_BNP_heart_failure_patient_Pharma_Raven_EHR b on a.encrypted_key_1=b.encrypted_key_1
+
+select count(distinct encrypted_key_1) from sandbox.rajat_Heart_failure_BNP_common //2207019
+
+-------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+//Pulling full claim history for inner join table (Heart failure + BNP Patient)
+sandbox.rajat_Heart_failure_BNP_common //inner join patient
+---------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_1_inner as
+select distinct * from sandbox.Claims_submits_header
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_1_inner //2177882
+
+//for header table , considering >=2013
+create table sandbox.rajat_full_claim_hx_BNP_1_header as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_1_inner
+where year(COALESCE(MIN_SERVICE_FROM,STATEMENT_FROM)) >='2013'
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_1_header //2168825
+---------------------------------------------------------------------------------------------------------
+
+create table sandbox.rajat_full_claim_hx_BNP_2_inner as
+select distinct * from sandbox.Claims_submits_procedure
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_2_inner //
+---------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_3_inner as
+select * from sandbox.Claims_submits_diagnosis
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_3_inner //
+
+//distincct
+create table sandbox.rajat_full_claim_hx_BNP_3_inner_diagnosis as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_3_inner
+
+---------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_4_inner as
+select distinct * from sandbox.Claims_submits_payer
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_4_inner //
+---------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_5_inner as
+select distinct * from sandbox.Claims_submits_patient
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_5_inner //2177882
+---------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_6_inner as
+select  * from sandbox.Claims_submits_provider
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_6_inner //
+
+//distinct
+create table sandbox.rajat_full_claim_hx_BNP_6_inner_final as
+select  distinct * from sandbox.rajat_full_claim_hx_BNP_6_inner
+
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+//EHR
+//Pulling full claim history for inner join table (Heart failure + BNP Patient)
+sandbox.rajat_Heart_failure_BNP_common //inner join patient
+
+create table sandbox.rajat_full_claim_hx_BNP_1_EHR_Problem as
+select distinct * from rwd.ALBATROSS_EHR_PROBLEMS
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_1_EHR_Problem //752528
+--------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_2_EHR_Order as
+select distinct * from rwd.ALBATROSS_EHR_ORDERS
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_2_EHR_Order //750361
+--------------------------------------------------------------------------------------------------------
+create table sandbox.rajat_full_claim_hx_BNP_3_EHR_Results as
+select distinct * from rwd.ALBATROSS_EHR_RESULTS
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_3_EHR_Results //645782
+--------------------------------------------------------------------------------------------------------
+
+create table sandbox.rajat_full_claim_hx_BNP_3_EHR_Patient as
+select distinct * from rwd.ALBATROSS_EHR_PATIENTS
+where ENCRYPTED_KEY_1 in ( select ENCRYPTED_KEY_1 from sandbox.rajat_Heart_failure_BNP_common)
+
+select count(distinct ENCRYPTED_KEY_1) from sandbox.rajat_full_claim_hx_BNP_3_EHR_Patient //865501
+--------------------------------------------------------------------------------------------------------
+
+
+
+
+//Apprach 2 - 
+//BNP Patient with Valid test result values
+
+//Valid Values
+
+select distinct value_x from sandbox.rajat_EHR_BNP_03_valuesX
+
+//Result table
+create table sandbox.rajat_EHR_BNP_03_valuesX as
+  select  'EHR' AS DataSource
+    ,encrypted_key_1
+    ,encrypted_key_2
+   ,encounterid AS Claim_Number
+   ,to_date(recordeddttm) AS SERVICE_FROM
+   ,loinc
+   ,panel
+   ,test
+   ,VALUE_X
+   ,REFRANGE
+   ,UNITS
+   ,VERSIONID
+From rwd.albatross_EHR_results ord
+where (lower(resultstatus)) in ('acknowledged','active','blood','cervix','clean catch','final','nose','ordered','other','pending','perineum','plasma',
+                            'preliminary','rectal','reviewed','serum','sputum','stool','synovial fluid','throat','unacknowledged','upper respiratory tract',
+                            'urine','urine - cath','urine - clean catch','urine 24 hour','vagina','vaginal discharge','wound')
+and
+( 
+  upper(loinc) in ('30934-4','309344','33762-6','337626') 
+  or
+( upper(ord.panel) like '%NATRIURETIC PEP%'
+      or upper(ord.panel) like '%BNP%'
+      or upper(ord.panel) like '%83880%'
+      or upper(ord.panel) like '%NATIURETIC PEPTIDE%'
+      or upper(ord.panel) like '%B-TYPE NATIURETIC PEPTIDE%'
+      or lower(ord.panel) like '%naturetic peptide%'
+      or lower(ord.panel) like '%b type natriuretic%'
+      or upper(ord.panel) like '%B-TYPE NATRIURETIC PEP%'
+      or upper(ord.panel) like '%BRAIN NATRIURETIC PEPTIDE%'
+      or lower(ord.panel) like '%natriuretic peptide%'
+      or lower(ord.panel) like '%natriuretic Pep%'
+or
+upper(ord.test) like '%NATRIURETIC PEP%'
+      or upper(ord.test) like '%BNP%'
+      or upper(ord.test) like '%83880%'
+      or upper(ord.test) like '%NATIURETIC PEPTIDE%'
+      or upper(ord.test) like '%B-TYPE NATIURETIC PEPTIDE%'
+      or lower(ord.test) like '%naturetic peptide%'
+      or lower(ord.test) like '%b type natriuretic%'
+      or upper(ord.test) like '%B-TYPE NATRIURETIC PEP%'
+      or upper(ord.test) like '%BRAIN NATRIURETIC PEPTIDE%'
+      or lower(ord.test) like '%natriuretic peptide%'
+      or lower(ord.test) like '%natriuretic Pep%'
+
+ 
+      ) 
+  )
+
+and trim(encrypted_key_1) not like 'XXX -%'
+and trim(encrypted_key_1) IS NOT NULL
+and trim(encrypted_key_1) <> ''
+and trim (upper(errorflag)) <> 'Y'
+
+drop table sandbox.rajat_EHR_BNP_03_valuesX_valid
+
+select count(distinct encrypted_key_1) from sandbox.rajat_EHR_BNP_03_valuesX_valid
+
+
+create table sandbox.rajat_EHR_BNP_03_valuesX_valid as
+select distinct * from sandbox.rajat_EHR_BNP_03_valuesX 
+where
+value_x not in
+('YES',
+'xyxyxy',
+'XYXY05.9',
+'XYXY05.8',
+'XYXY05.7',
+'XYXY05.6',
+'XYXY05.5',
+'XYXY05.4',
+'XYXY05.3',
+'XYXY05.2',
+'XYXY05.1',
+'XYXY05 S/B BTNP',
+'XYXY01',
+'Wrong test ordered.',
+'WRONG TEST ORDERED',
+'UNKNOWN',
+'Unknown',
+'UKN',
+'TNP/104',
+'TNP',
+'TEST NOT PERFORMED.',
+'Test Not Performed.',
+'TEST NOT PERFORMED',
+'Test Not Performed',
+'Test not performed',
+'TEST INCORRECTLY ORDERED',
+'Test Canceled. Reason: WRONG TEST ORDERED SEE NTBNP JMK/17646',
+'Test Canceled. Reason: WRONG TEST ORDERED',
+'Test Canceled. Reason: QNS TO PERFORM TEST REQUESTED XYXY05 ADDED TO XLAV.',
+'Test Canceled. Reason: INCORRECT TUBE/SPECIMEN TYPE, UNABLE TO PERFORM TEST SST OR XYXY05 REQUIRED FOR TEST.  GREEN TOP RECIEVED.',
+'Test Canceled. Reason: ADDED TO PREVIOUS ORDER',
+'TEST CANCELED',
+'Specimen was not acceptable',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 58',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 52',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 47',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 46',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 44',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 40',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 36',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 34',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 29',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 28',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 26',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 24',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 22',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 20',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 19',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 16',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 14',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 10',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 07',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 05',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 03',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 02',
+'SPECIMEN RECEIVED DATE AND TIME:XYXY31 01',
+'SPECIMEN RECEIVED DATE AND TIME: 201709070627',
+'SPECIMEN RECEIVED DATE AND TIME: 201709061528',
+'SPECIMEN RECEIVED DATE AND TIME: 201709020811',
+'SPECIMEN RECEIVED DATE AND TIME: 201708310924',
+'SPECIMEN RECEIVED DATE AND TIME: 201708300705',
+'SPECIMEN RECEIVED DATE AND TIME: 201708291416',
+'SPECIMEN RECEIVED DATE AND TIME: 201708280750',
+'SPECIMEN RECEIVED DATE AND TIME: 201708241220',
+'SPECIMEN RECEIVED DATE AND TIME: 201708240716',
+'SPECIMEN RECEIVED DATE AND TIME: 201708080946',
+'SPECIMEN RECEIVED DATE AND TIME: 201708080850',
+'SPECIMEN RECEIVED DATE AND TIME: 201708080741',
+'SPECIMEN RECEIVED DATE AND TIME: 201708041414',
+'SPECIMEN RECEIVED DATE AND TIME: 201707311009',
+'SPECIMEN RECEIVED DATE AND TIME: 201707280900',
+'SPECIMEN RECEIVED DATE AND TIME: 201707261013',
+'SPECIMEN RECEIVED DATE AND TIME: 201707261007',
+'SPECIMEN RECEIVED DATE AND TIME: 201707240741',
+'SPECIMEN RECEIVED DATE AND TIME: 201707191133',
+'SPECIMEN RECEIVED DATE AND TIME: 201707180827',
+'SPECIMEN RECEIVED DATE AND TIME: 201707180804',
+'SPECIMEN RECEIVED DATE AND TIME: 201707140846',
+'SPECIMEN RECEIVED DATE AND TIME: 201707031000',
+'SPECIMEN RECEIVED DATE AND TIME: 201706290909',
+'SPECIMEN RECEIVED DATE AND TIME: 201706231336',
+'SPECIMEN RECEIVED DATE AND TIME: 201706211331',
+'SPECIMEN RECEIVED DATE AND TIME: 201706210742',
+'SPECIMEN RECEIVED DATE AND TIME: 201706200856',
+'SPECIMEN RECEIVED DATE AND TIME: 201706190827',
+'SPECIMEN RECEIVED DATE AND TIME: 201706161126',
+'SPECIMEN RECEIVED DATE AND TIME: 201706141042',
+'SPECIMEN RECEIVED DATE AND TIME: 201706131418',
+'SPECIMEN RECEIVED DATE AND TIME: 201706131054',
+'SPECIMEN RECEIVED DATE AND TIME: 201706071103',
+'SPECIMEN RECEIVED DATE AND TIME: 201706061051',
+'SPECIMEN RECEIVED DATE AND TIME: 201705311250',
+'SPECIMEN RECEIVED DATE AND TIME: 201705230922',
+'SPECIMEN RECEIVED DATE AND TIME: 201705200958',
+'SPECIMEN RECEIVED DATE AND TIME: 201705180845',
+'SPECIMEN RECEIVED DATE AND TIME: 201705151218',
+'SPECIMEN RECEIVED DATE AND TIME: 201705081332',
+'SPECIMEN RECEIVED DATE AND TIME: 201705061019',
+'SPECIMEN RECEIVED DATE AND TIME: 201705041001',
+'SPECIMEN RECEIVED DATE AND TIME: 201705040802',
+'SPECIMEN RECEIVED DATE AND TIME: 201705040640',
+'SPECIMEN RECEIVED DATE AND TIME: 201704271404',
+'SPECIMEN RECEIVED DATE AND TIME: 201704270950',
+'SPECIMEN RECEIVED DATE AND TIME: 201704261420',
+'SPECIMEN RECEIVED DATE AND TIME: 201704200843',
+'SPECIMEN RECEIVED DATE AND TIME: 201704141410',
+'SPECIMEN RECEIVED DATE AND TIME: 201704131330',
+'SPECIMEN RECEIVED DATE AND TIME: 201704121241',
+'SPECIMEN RECEIVED DATE AND TIME: 201703291133',
+'SPECIMEN RECEIVED DATE AND TIME: 201703290757',
+'SPECIMEN RECEIVED DATE AND TIME: 201703270811',
+'SPECIMEN RECEIVED DATE AND TIME: 201703241419',
+'SPECIMEN RECEIVED DATE AND TIME: 201703240928',
+'SPECIMEN RECEIVED DATE AND TIME: 201703240857',
+'SPECIMEN RECEIVED DATE AND TIME: 201703231016',
+'SPECIMEN RECEIVED DATE AND TIME: 201703211015',
+'SPECIMEN RECEIVED DATE AND TIME: 201703031320',
+'SPECIMEN RECEIVED DATE AND TIME: 201702210820',
+'SPECIMEN RECEIVED DATE AND TIME: 201702150857',
+'SPECIMEN RECEIVED DATE AND TIME: 201702140955',
+'SPECIMEN RECEIVED DATE AND TIME: 201702131057',
+'SPECIMEN RECEIVED DATE AND TIME: 201702081126',
+'SPECIMEN RECEIVED DATE AND TIME: 201702070606',
+'SPECIMEN RECEIVED DATE AND TIME: 201702030902',
+'SPECIMEN RECEIVED DATE AND TIME: 201702011015',
+'SPECIMEN RECEIVED DATE AND TIME: 201701311317',
+'SPECIMEN RECEIVED DATE AND TIME: 201701250921',
+'SPECIMEN RECEIVED DATE AND TIME: 201701190908',
+'SPECIMEN RECEIVED DATE AND TIME: 201701121300',
+'SPECIMEN RECEIVED DATE AND TIME: 201701050848',
+'SPECIMEN RECEIVED DATE AND TIME: 201701041035',
+'SPECIMEN RECEIVED DATE AND TIME: 201612300932',
+'SPECIMEN RECEIVED DATE AND TIME: 201612201433',
+'SPECIMEN RECEIVED DATE AND TIME: 201612191033',
+'SPECIMEN RECEIVED DATE AND TIME: 201612120729',
+'SPECIMEN RECEIVED DATE AND TIME: 201612021422',
+'SPECIMEN RECEIVED DATE AND TIME: 201611281033',
+'SPECIMEN RECEIVED DATE AND TIME: 201611220715',
+'SPECIMEN RECEIVED DATE AND TIME: 201611161409',
+'SPECIMEN RECEIVED DATE AND TIME: 201611111056',
+'SPECIMEN RECEIVED DATE AND TIME: 201611071332',
+'SPECIMEN RECEIVED DATE AND TIME: 201611011345',
+'SPECIMEN RECEIVED DATE AND TIME: 201610310941',
+'SPECIMEN RECEIVED DATE AND TIME: 201610191401',
+'SPECIMEN RECEIVED DATE AND TIME: 201610180954',
+'SPECIMEN RECEIVED DATE AND TIME: 201610171407',
+'SPECIMEN RECEIVED DATE AND TIME: 201610101104',
+'SPECIMEN RECEIVED DATE AND TIME: 201610051049',
+'SPECIMEN RECEIVED DATE AND TIME: 201609300906',
+'SPECIMEN RECEIVED DATE AND TIME: 201609261427',
+'SPECIMEN RECEIVED DATE AND TIME: 201609231053',
+'SPECIMEN RECEIVED DATE AND TIME: 201609191205',
+'SPECIMEN RECEIVED DATE AND TIME: 201609161032',
+'SPECIMEN RECEIVED DATE AND TIME: 201609151253',
+'SPECIMEN RECEIVED DATE AND TIME: 201609091125',
+'SPECIMEN RECEIVED DATE AND TIME: 201609090809',
+'SPECIMEN RECEIVED DATE AND TIME: 201608301048',
+'SPECIMEN RECEIVED DATE AND TIME: 201608300822',
+'SPECIMEN RECEIVED DATE AND TIME: 201608251045',
+'SPECIMEN RECEIVED DATE AND TIME: 201608250854',
+'SPECIMEN RECEIVED DATE AND TIME: 201608231449',
+'SPECIMEN RECEIVED DATE AND TIME: 201608170938',
+'SPECIMEN RECEIVED DATE AND TIME: 201608160911',
+'SPECIMEN RECEIVED DATE AND TIME: 201608110957',
+'SPECIMEN RECEIVED DATE AND TIME: 201608110747',
+'SPECIMEN RECEIVED DATE AND TIME: 201608051128',
+'SPECIMEN RECEIVED DATE AND TIME: 201608041322',
+'SPECIMEN RECEIVED DATE AND TIME: 201608021541',
+'SPECIMEN RECEIVED DATE AND TIME: 201608010753',
+'SPECIMEN RECEIVED DATE AND TIME: 201607281112',
+'SPECIMEN RECEIVED DATE AND TIME: 201607280708',
+'SPECIMEN RECEIVED DATE AND TIME: 201607191228',
+'SPECIMEN RECEIVED DATE AND TIME: 201607061517',
+'SPECIMEN RECEIVED DATE AND TIME: 201606300604',
+'SPECIMEN RECEIVED DATE AND TIME: 201606221154',
+'SPECIMEN RECEIVED DATE AND TIME: 201606200631',
+'SPECIMEN RECEIVED DATE AND TIME: 201606171129',
+'SPECIMEN RECEIVED DATE AND TIME: 201606151418',
+'SPECIMEN RECEIVED DATE AND TIME: 201606040900',
+'SPECIMEN RECEIVED DATE AND TIME: 201605311418',
+'SPECIMEN RECEIVED DATE AND TIME: 201605251515',
+'SPECIMEN RECEIVED DATE AND TIME: 201605240901',
+'SPECIMEN RECEIVED DATE AND TIME: 201605210733',
+'SPECIMEN RECEIVED DATE AND TIME: 201605180913',
+'SPECIMEN RECEIVED DATE AND TIME: 201605111048',
+'SPECIMEN RECEIVED DATE AND TIME: 201605051309',
+'SPECIMEN RECEIVED DATE AND TIME: 201605020836',
+'SPECIMEN RECEIVED DATE AND TIME: 201604291223',
+'SPECIMEN RECEIVED DATE AND TIME: 201604120347',
+'SPECIMEN RECEIVED DATE AND TIME: 201604061242',
+'SPECIMEN RECEIVED DATE AND TIME: 201603250824',
+'SPECIMEN RECEIVED DATE AND TIME: 201603241006',
+'SPECIMEN RECEIVED DATE AND TIME: 201603030911',
+'SPECIMEN RECEIVED DATE AND TIME: 201603010940',
+'SPECIMEN RECEIVED DATE AND TIME: 201602290837',
+'SPECIMEN RECEIVED DATE AND TIME: 201602060735',
+'SPECIMEN RECEIVED DATE AND TIME: 201602051434',
+'SPECIMEN RECEIVED DATE AND TIME: 201601211233',
+'SPECIMEN RECEIVED DATE AND TIME: 201601130952',
+'SPECIMEN RECEIVED DATE AND TIME: 201601071345',
+'SPECIMEN RECEIVED DATE AND TIME: 201601041005',
+'SPECIMEN RECEIVED DATE AND TIME: 201512240844',
+'SPECIMEN RECEIVED DATE AND TIME: 201512220955',
+'SPECIMEN RECEIVED DATE AND TIME: 201512140858',
+'SPECIMEN RECEIVED DATE AND TIME: 201512031249',
+'SPECIMEN RECEIVED DATE AND TIME: 201512021124',
+'SPECIMEN RECEIVED DATE AND TIME: 201510311027',
+'SPECIMEN RECEIVED DATE AND TIME: 201510291045',
+'SPECIMEN RECEIVED DATE AND TIME: 201510271016',
+'SPECIMEN RECEIVED DATE AND TIME: 201510211305',
+'See Text',
+'See Separate Report',
+'see scanned image',
+'SEE REFERENCE LAB',
+'see reference lab',
+'See Ref. Lab Report',
+'SEE REF. LAB REPORT',
+'See Notes',
+'See note.',
+'SEE NOTE',
+'See note',
+'See Note',
+'see message',
+'SEE MESSAGE',
+'SEE COMMENTS',
+'See Comment',
+'See Below',
+'see below',
+'SEE BELOW',
+'Results on chart',
+'Results are on the chart.',
+'REQUEST CREDITED WRONG TEST ORDERED',
+'REQUEST CREDITED WRONG DATE ENTERED ON ORDER',
+'REQUEST CREDITED UNABLE TO PERFORM DUE TO THE PRESENCE OF HEMOLYSIS',
+'REQUEST CREDITED REORDERED WITH CORRECT PHYSICIAN CODE',
+'REQUEST CREDITED NO SAMPLE RECEIVED',
+'REQUEST CREDITED DUPLICATE REQUEST',
+'QNS TO PERFORM TEST',
+'QNS',
+'Pending',
+'PENDING',
+'pending',
+'O.OO',
+'NULL',
+'NSR',
+'Note:',
+'NOTE',
+'NOT DONE PT. SENT TO XYXY23 XYXY24 MD',
+'Not Done',
+'None detected',
+'None',
+'NO SST received',
+'No plasm sent',
+'NO COLLECTION DATE RECEIVED. WE HAVE USEDTHE DATE THE SPECIMEN WAS RECEIVED BY THISLABORATORY AS THE COLLECTION DATE. IF THISIS INCORRECT, PLEASE CONTACT CLIENT SERVICES.PHONE NUMBER: XYXY31',
+'No',
+'NO',
+'NEGATIVE',
+'Negative',
+'neg',
+'NA',
+'na',
+'N/A',
+'Missed collecting a test.',
+'INVALID',
+'Invalid',
+'FASTING',
+'ERROR',
+'DUPLICATE REQUEST',
+'Detected',
+'COMPLETED',
+'Comment:',
+'Comment',
+'COMMENT',
+'CANCPROV',
+'Cancelled by Lab.',
+'Cancelled',
+'CANCELLED',
+'CANCELED',
+'Cancel Reason: Lab Cancellation',
+'CANCEL - 2 Quantity Not Sufficient collected by Clinic Lab',
+'CANCEL - 1 Cancel per  CLINIC: not needed',
+'CANC',
+'Atrial fibrillation',
+'>70000',
+'>5248',
+'>5135',
+'>5000.0',
+'>5000',
+'>5.0',
+'>5',
+'>4901',
+'>4900',
+'>4845',
+'>4503.0',
+'>4200',
+'>4000',
+'>35000.00',
+'>35000.0',
+'>35000',
+'>3500',
+'>3490',
+'>30000',
+'>2950',
+'>2580',
+'>22423',
+'>20000',
+'>175000.0',
+'>175000',
+'>17',
+'>100000',
+'>100.000',
+'>100',
+'> 70000',
+'> 60',
+'> 5000.0',
+'> 5000',
+'> 5',
+'> 4996',
+'> 4985',
+'> 4940',
+'> 4906.0',
+'> 4900',
+'> 4845',
+'> 4841',
+'> 4828',
+'> 4200',
+'> 35000',
+'> 30000',
+'> 175000',
+'<9',
+'<7',
+'<50',
+'<5.00',
+'<5.0',
+'<5',
+'<40',
+'<4.0',
+'<4',
+'<33',
+'<300',
+'<30.0',
+'<30',
+'<3.5',
+'<3',
+'<28',
+'<27',
+'<25.8',
+'<25.0',
+'<25',
+'<200',
+'<2.5',
+'<2.000',
+'<2.0',
+'<2',
+'<19',
+'<17',
+'<15pglml',
+'<15pg/ml',
+'<15.0',
+'<15 pg/ml',
+'<15 pg/mL',
+'<15',
+'<14pg/ml',
+'<11.1',
+'<100',
+'<10.0',
+'<10',
+'<1.0',
+'<1',
+'<0.5',
+'<0.05',
+'<0.04',
+'<0.01',
+'<.5',
+'< 5000',
+'< 50',
+'< 5.0',
+'< 5',
+'< 4',
+'< 3',
+'< 22',
+'< 2',
+'< 15',
+'< 10.0',
+'< 10',
+'.',
+',<5.0',
+'*****',
+'*',
+'(NOTE)',
+'-'
+ )
+ 
+ 
+ select distinct encrypted_key_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid
+minus ( select distinct encrypted_key_1 from sandbox.rajat_EHR_BNP_union)
+
+
+
+---------------------------------------------------------------------------------------------
+//Inner join with tables to get patient with valid BNP Values
+---------------------------------------------------------------------------------------------
+
+//Raven
+create table sandbox.rajat_full_claim_hx_BNP_1_Header_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_1_inner
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+select count(distinct ENCRYPTED_KEY_1 ) from sandbox.rajat_full_claim_hx_BNP_1_Header_Table //258770
+             
+create table sandbox.rajat_full_claim_hx_BNP_1_Procedure_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_2_inner
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_1_Diagonasis_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_3_inner_diagnosis
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_1_Payer_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_4_inner
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_1_Patient_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_5_inner
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_1_Provider_Table as
+select distinct * from sandbox. rajat_full_claim_hx_BNP_6_inner_final
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+
+//EHR
+create table sandbox.rajat_full_claim_hx_BNP_1_EHR_Problem_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_1_EHR_Problem
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_2_EHR_Order_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_2_EHR_Order
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_3_EHR_Results_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_3_EHR_Results
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+create table sandbox.rajat_full_claim_hx_BNP_3_EHR_Patient_Table as
+select distinct * from sandbox.rajat_full_claim_hx_BNP_3_EHR_Patient
+where ENCRYPTED_KEY_1 in ( select distinct ENCRYPTED_KEY_1 from sandbox.rajat_EHR_BNP_03_valuesX_valid)
+
+
+
+
+show tables like 'rajat_full_claim_hx_BNP_1_inner' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_2_inner' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_3_inner_diagnosis' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_4_inner' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_5_inner' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_6_inner_final' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_EHR_Problem' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_2_EHR_Order' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_3_EHR_Results' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_3_EHR_Patient' in sandbox
+
+
+show tables like 'rajat_full_claim_hx_BNP_1_Header_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_Procedure_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_Diagonasis_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_Payer_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_Patient_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_Provider_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_EHR_Problem_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_1_EHR_Problem_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_3_EHR_Results_Table' in sandbox
+show tables like 'rajat_full_claim_hx_BNP_3_EHR_Patient_Table' in sandbox
+
+
+
+
